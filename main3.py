@@ -6,6 +6,7 @@ import numpy as np
 import random
 from sklearn.metrics import confusion_matrix
 
+#SSC ler atılarak bakılıyor
 # =========================
 # Reproducibility
 # =========================
@@ -38,7 +39,7 @@ class FNN(nn.Module):
 # =========================
 def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
     d_in = X.shape[1]
-    d_out = len(torch.unique(y))  # should be 3 in your case
+    d_out = len(torch.unique(y))
 
     model = FNN(d_in, d_hidden, d_out)
     criterion = nn.CrossEntropyLoss()
@@ -92,7 +93,6 @@ def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1
             f"Val Acc: {val_acc*100:.2f}%"
         )
 
-    # restore best model
     model.load_state_dict(best_state)
     return model
 
@@ -148,6 +148,16 @@ def evaluate_model(model, X_val, y_val, class_names=None):
 def load_subject_excel(filepath):
     df = pd.read_excel(filepath)
 
+    # SSC featurelerini çıkar
+    cols_to_drop = ["SSC1", "SSC2"]
+
+    # eğer büyük-küçük harf farkı olursa diye güvenli hale getiriyoruz
+    df.columns = [col.strip() for col in df.columns]
+
+    existing_cols_to_drop = [col for col in cols_to_drop if col in df.columns]
+    df = df.drop(columns=existing_cols_to_drop)
+
+    # son sütun TRUECLASS olacak şekilde
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values
 
@@ -162,9 +172,8 @@ def load_subject_excel(filepath):
 def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
     class_names = ["0to90", "90to0", "rest"]
 
-    # Load all subjects separately
     subject_data = {}
-    for subject_name, filepath in subject_files.items():  #subject_files is a dict, that is why we use .items()
+    for subject_name, filepath in subject_files.items():
         X_subj, y_subj = load_subject_excel(filepath)
         subject_data[subject_name] = (X_subj, y_subj)
 
@@ -184,10 +193,8 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         print(f"LOSO Fold | Validation Subject: {val_subject}")
         print("="*70)
 
-        # Validation subject
         X_val, y_val = subject_data[val_subject]
 
-        # Training subjects = all others
         X_train_list = []
         y_train_list = []
 
@@ -211,7 +218,6 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         print(f"Train class distribution: {dict(zip(unique_train, counts_train))}")
         print(f"Val class distribution: {dict(zip(unique_val, counts_val))}")
 
-        # Fresh model for this fold
         model = train_model(
             X_train, y_train, X_val, y_val,
             d_hidden=d_hidden,
@@ -220,14 +226,10 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
             lr=lr
         )
 
-        # Evaluate
         result = evaluate_model(model, X_val, y_val, class_names=class_names)
         result["val_subject"] = val_subject
         fold_results.append(result)
 
-    # =========================
-    # Final Summary
-    # =========================
     print("\n" + "#"*70)
     print("FINAL LOSO SUMMARY")
     print("#"*70)
@@ -245,7 +247,6 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
     print(f"Mean Loss    : {np.mean(all_losses):.4f}")
 
     print("\nMean Per-Class Accuracy Across Folds:")
-    class_names = ["0to90", "90to0", "rest"]
     for i, cname in enumerate(class_names):
         print(f"{cname}: {np.mean(all_per_class[:, i])*100:.2f}%")
 
@@ -255,9 +256,7 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
 # Main
 # =========================
 if __name__ == "__main__":
-    # Put your real subject file paths here
     subject_files = {
-        #"subject1": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ahmet_training.xlsx",
         "subject2": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/berkay_training.xlsx",
         "subject3": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/canberk_training.xlsx",
         "subject4": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ekin_training.xlsx",

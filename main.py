@@ -127,7 +127,7 @@ def inference(model, X_val, y_val):
 
 if __name__ == "__main__":
     #df = pd.read_csv(r"/Users/canberkkurtul/Desktop/emgdata/3103/training_normalized_bysubject.csv")
-    df= pd.read_excel(r"/Users/canberkkurtul/Desktop/emgdata/3103/training_data.xlsx")
+    df= pd.read_excel(r"/Users/canberkkurtul/Desktop/emgdata/train_sil.xlsx")
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values
   
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     y = torch.tensor(y, dtype=torch.long)
 
     #df_val = pd.read_csv(r"/Users/canberkkurtul/Desktop/emgdata/3103/validation_normalized.csv")
-    df_val = pd.read_excel(r"/Users/canberkkurtul/Desktop/emgdata/3103/validation_data.xlsx")
+    df_val = pd.read_excel(r"/Users/canberkkurtul/Desktop/emgdata/val_sil.xlsx")
 
     X_val = df_val.iloc[:, :-1].values
     y_val = df_val.iloc[:, -1].values
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     X_val = torch.tensor(X_val, dtype=torch.float32)
     y_val = torch.tensor(y_val, dtype=torch.long)
 
-    model = train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=500, lr=1e-3)
+    model = train_model(X, y, X_val, y_val, d_hidden=20, epochs=100, batch_size=128, lr=1e-3)
     inference(model, X_val, y_val)
 
     # torch.save(model.state_dict(), "fnn_model.pth")

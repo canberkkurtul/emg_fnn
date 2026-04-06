@@ -1,3 +1,4 @@
+#2 hidden layer
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -21,27 +22,29 @@ torch.backends.cudnn.benchmark = False
 # Model
 # =========================
 class FNN(nn.Module):
-    def __init__(self, d_in: int, d_hidden: int, d_out: int):
+    def __init__(self, d_in, d_hidden1, d_hidden2, d_out):
         super().__init__()
-        self.fc1 = nn.Linear(d_in, d_hidden)
-        #self.activation = nn.Tanh()
+        self.fc1 = nn.Linear(d_in, d_hidden1)
+        self.fc2 = nn.Linear(d_hidden1, d_hidden2)
+        self.fc3 = nn.Linear(d_hidden2, d_out)
         self.activation = nn.ReLU()
-        self.fc2 = nn.Linear(d_hidden, d_out)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x):
         x = self.fc1(x)
         x = self.activation(x)
         x = self.fc2(x)
+        x = self.activation(x)
+        x = self.fc3(x)
         return x
 
 # =========================
 # Training
 # =========================
-def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
+def train_model(X, y, X_val, y_val, d_hidden1=32, d_hidden2=32,epochs=50, batch_size=128, lr=1e-3):
     d_in = X.shape[1]
     d_out = len(torch.unique(y))  # should be 3 in your case
 
-    model = FNN(d_in, d_hidden, d_out)
+    model = FNN(d_in, d_hidden1,d_hidden2, d_out)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
@@ -160,7 +163,7 @@ def load_subject_excel(filepath):
 # =========================
 # LOSO Cross Validation
 # =========================
-def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
+def loso_cross_validation(subject_files, d_hidden1=32, d_hidden2=32,epochs=50, batch_size=128, lr=1e-3):
     class_names = ["0to90", "90to0", "rest"]
 
     # Load all subjects separately
@@ -215,7 +218,8 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         # Fresh model for this fold
         model = train_model(
             X_train, y_train, X_val, y_val,
-            d_hidden=d_hidden,
+            d_hidden1=d_hidden1,
+            d_hidden2=d_hidden2,
             epochs=epochs,
             batch_size=batch_size,
             lr=lr
@@ -270,7 +274,8 @@ if __name__ == "__main__":
 
     results = loso_cross_validation(
         subject_files,
-        d_hidden=20,
+        d_hidden1=20,
+        d_hidden2=32,
         epochs=100,
         batch_size=128,
         lr=1e-3

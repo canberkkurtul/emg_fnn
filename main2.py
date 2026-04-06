@@ -257,7 +257,7 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
 if __name__ == "__main__":
     # Put your real subject file paths here
     subject_files = {
-        #"subject1": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ahmet_training.xlsx",
+        "subject1": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ahmet_training.xlsx",
         "subject2": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/berkay_training.xlsx",
         "subject3": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/canberk_training.xlsx",
         "subject4": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ekin_training.xlsx",

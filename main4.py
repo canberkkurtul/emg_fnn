@@ -1,3 +1,5 @@
+#z-score normalization eklendi
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,7 +8,6 @@ import numpy as np
 import random
 from sklearn.metrics import confusion_matrix
 
-#SSC ler atılarak bakılıyor
 # =========================
 # Reproducibility
 # =========================
@@ -35,11 +36,30 @@ class FNN(nn.Module):
         return x
 
 # =========================
+# Z-score normalization
+# =========================
+def zscore_fit_transform(X_train, X_val, eps=1e-8):
+    """
+    Fit z-score parameters on training data only,
+    then apply to both train and validation data.
+    """
+    train_mean = X_train.mean(dim=0, keepdim=True)
+    train_std = X_train.std(dim=0, keepdim=True)
+
+    # avoid division by zero for constant features
+    train_std = torch.where(train_std < eps, torch.ones_like(train_std), train_std)
+
+    X_train_norm = (X_train - train_mean) / train_std
+    X_val_norm = (X_val - train_mean) / train_std
+
+    return X_train_norm, X_val_norm, train_mean, train_std
+
+# =========================
 # Training
 # =========================
 def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
     d_in = X.shape[1]
-    d_out = len(torch.unique(y))
+    d_out = len(torch.unique(y))  # should be 3 in your case
 
     model = FNN(d_in, d_hidden, d_out)
     criterion = nn.CrossEntropyLoss()
@@ -93,6 +113,7 @@ def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1
             f"Val Acc: {val_acc*100:.2f}%"
         )
 
+    # restore best model
     model.load_state_dict(best_state)
     return model
 
@@ -148,16 +169,6 @@ def evaluate_model(model, X_val, y_val, class_names=None):
 def load_subject_excel(filepath):
     df = pd.read_excel(filepath)
 
-    # SSC featurelerini çıkar
-    cols_to_drop = ["RMS2","WA2","WL2","SSC2"]
-
-    # eğer büyük-küçük harf farkı olursa diye güvenli hale getiriyoruz
-    df.columns = [col.strip() for col in df.columns]
-
-    existing_cols_to_drop = [col for col in cols_to_drop if col in df.columns]
-    df = df.drop(columns=existing_cols_to_drop)
-
-    # son sütun TRUECLASS olacak şekilde
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values
 
@@ -172,6 +183,7 @@ def load_subject_excel(filepath):
 def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
     class_names = ["0to90", "90to0", "rest"]
 
+    # Load all subjects separately
     subject_data = {}
     for subject_name, filepath in subject_files.items():
         X_subj, y_subj = load_subject_excel(filepath)
@@ -185,7 +197,6 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         print(f"Class distribution: {dict(zip(unique, counts))}")
 
     fold_results = []
-
     subject_names = list(subject_files.keys())
 
     for val_subject in subject_names:
@@ -193,8 +204,10 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         print(f"LOSO Fold | Validation Subject: {val_subject}")
         print("="*70)
 
+        # Validation subject
         X_val, y_val = subject_data[val_subject]
 
+        # Training subjects = all others
         X_train_list = []
         y_train_list = []
 
@@ -218,18 +231,32 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         print(f"Train class distribution: {dict(zip(unique_train, counts_train))}")
         print(f"Val class distribution: {dict(zip(unique_val, counts_val))}")
 
+        # =========================
+        # Z-score normalization here
+        # =========================
+        X_train_norm, X_val_norm, train_mean, train_std = zscore_fit_transform(X_train, X_val)
+
+        print("Applied z-score normalization using training-fold statistics.")
+        print(f"Train mean shape: {train_mean.shape}")
+        print(f"Train std shape : {train_std.shape}")
+
+        # Fresh model for this fold
         model = train_model(
-            X_train, y_train, X_val, y_val,
+            X_train_norm, y_train, X_val_norm, y_val,
             d_hidden=d_hidden,
             epochs=epochs,
             batch_size=batch_size,
             lr=lr
         )
 
-        result = evaluate_model(model, X_val, y_val, class_names=class_names)
+        # Evaluate
+        result = evaluate_model(model, X_val_norm, y_val, class_names=class_names)
         result["val_subject"] = val_subject
         fold_results.append(result)
 
+    # =========================
+    # Final Summary
+    # =========================
     print("\n" + "#"*70)
     print("FINAL LOSO SUMMARY")
     print("#"*70)
@@ -247,6 +274,7 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
     print(f"Mean Loss    : {np.mean(all_losses):.4f}")
 
     print("\nMean Per-Class Accuracy Across Folds:")
+    class_names = ["0to90", "90to0", "rest"]
     for i, cname in enumerate(class_names):
         print(f"{cname}: {np.mean(all_per_class[:, i])*100:.2f}%")
 

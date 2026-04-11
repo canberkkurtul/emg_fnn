@@ -149,7 +149,7 @@ def load_subject_excel(filepath):
     df = pd.read_excel(filepath)
 
     # SSC featurelerini çıkar
-    cols_to_drop = ["RMS2","WA2","WL2","SSC2"]
+    cols_to_drop = []#["SSC1","WA2","WL2","SSC2"]
 
     # eğer büyük-küçük harf farkı olursa diye güvenli hale getiriyoruz
     df.columns = [col.strip() for col in df.columns]
@@ -257,20 +257,17 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
 # =========================
 if __name__ == "__main__":
     subject_files = {
-        "subject1": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ahmet_training.xlsx",
-        "subject2": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/berkay_training.xlsx",
-        "subject3": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/canberk_training.xlsx",
-        "subject4": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/ekin_training.xlsx",
-        "subject5": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/emre_training.xlsx",
-        "subject6": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/melih_training.xlsx",
-        "subject7": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/yigit_training.xlsx",
-        "subject8": r"/Users/canberkkurtul/Desktop/emgdata/3103/training_LOCO/zeynep_training.xlsx"
+        "subject1": r"/Users/canberkkurtul/Desktop/training_1104/berkay_training_1104.xlsx",
+        "subject2": r"/Users/canberkkurtul/Desktop/training_1104/canberk_training_1104.xlsx",
+        "subject3": r"/Users/canberkkurtul/Desktop/training_1104/emre_training_1104.xlsx",
+        "subject4": r"/Users/canberkkurtul/Desktop/training_1104/yigit_training_1104.xlsx",
+        "subject5": r"/Users/canberkkurtul/Desktop/training_1104/zeynep_training_1104.xlsx"
     }
 
     results = loso_cross_validation(
         subject_files,
-        d_hidden=20,
+        d_hidden=32,
         epochs=100,
-        batch_size=128,
-        lr=1e-3
+        batch_size=64,
+        lr=1e-2
     )

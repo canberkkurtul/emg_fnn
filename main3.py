@@ -170,7 +170,7 @@ def load_subject_excel(filepath):
 # LOSO Cross Validation
 # =========================
 def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
-    class_names = ["0to90", "90to0", "rest"]
+    class_names = ["biceps contraction", "triceps contraction", "rest"]
 
     subject_data = {}
     for subject_name, filepath in subject_files.items():

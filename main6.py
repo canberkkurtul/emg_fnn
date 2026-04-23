@@ -6,7 +6,12 @@ import numpy as np
 import random
 from sklearn.metrics import confusion_matrix
 
-#SSC ler atılarak bakılıyor
+# =========================
+# GPU/MPS Support (Added for Mac Speed)
+# =========================
+device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+print(f"Using device: {device}")
+
 # =========================
 # Reproducibility
 # =========================
@@ -38,15 +43,19 @@ class FNN(nn.Module):
 # Training
 # =========================
 def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
-    d_in = X.shape[1]
-    d_out = len(torch.unique(y))
+    # Move data to GPU/MPS
+    X, y = X.to(device), y.to(device)
+    X_val, y_val = X_val.to(device), y_val.to(device)
 
-    model = FNN(d_in, d_hidden, d_out)
+    d_in = X.shape[1] # Automatically detects 28 features!
+    # Dynamically find the total number of unique classes across both train and val
+    d_out = len(torch.unique(torch.cat((y, y_val)))) 
+
+    model = FNN(d_in, d_hidden, d_out).to(device) # Move model to GPU/MPS
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     N = X.shape[0]
-
     best_val_acc = -1.0
     best_state = None
 
@@ -86,12 +95,9 @@ def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1
             best_val_acc = val_acc
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
 
-        print(
-            f"Epoch {epoch+1:02d}/{epochs} | "
-            f"Train Loss: {train_loss:.4f} | "
-            f"Val Loss: {val_loss:.4f} | "
-            f"Val Acc: {val_acc*100:.2f}%"
-        )
+        # Print every 10 epochs to keep the terminal clean but show progress
+        if (epoch + 1) % 10 == 0:
+            print(f"Epoch {epoch+1:02d}/{epochs} | Train Loss: {train_loss:.4f} | Val Acc: {val_acc*100:.2f}%")
 
     model.load_state_dict(best_state)
     return model
@@ -99,8 +105,11 @@ def train_model(X, y, X_val, y_val, d_hidden=32, epochs=50, batch_size=128, lr=1
 # =========================
 # Evaluation
 # =========================
-def evaluate_model(model, X_val, y_val, class_names=None):
+def evaluate_model(model, X_val, y_val, class_names):
+    # Move val data to GPU/MPS
+    X_val, y_val = X_val.to(device), y_val.to(device)
     criterion = nn.CrossEntropyLoss()
+    num_classes = len(class_names) # Dynamically handles 7 classes
 
     model.eval()
     with torch.no_grad():
@@ -116,23 +125,24 @@ def evaluate_model(model, X_val, y_val, class_names=None):
         y_true = y_val.cpu().numpy()
         y_pred = preds.cpu().numpy()
 
-        cm = confusion_matrix(y_true, y_pred, labels=[0, 1, 2])
+        # Update: labels parameter dynamically handles 0 through 6
+        cm = confusion_matrix(y_true, y_pred, labels=list(range(num_classes)))
 
-        per_class_acc = np.zeros(3)
-        for i in range(3):
+        # Update: Per-class accuracy loop now iterates over num_classes (7)
+        per_class_acc = np.zeros(num_classes)
+        for i in range(num_classes):
             row_sum = cm[i].sum()
             per_class_acc[i] = cm[i, i] / row_sum if row_sum > 0 else 0.0
 
-        print("Confusion Matrix:")
+        print("\nConfusion Matrix:")
         print(cm)
 
-        print("Per-class accuracy:")
+        print("\nPer-class accuracy:")
         for i, a in enumerate(per_class_acc):
-            label = class_names[i] if class_names is not None else f"Class {i}"
+            label = class_names[i]
             print(f"{label}: {a*100:.2f}%")
 
         print(f"Validation Loss: {val_loss:.4f}")
-        print(f"Correct: {correct}/{total}")
         print(f"Validation Accuracy: {acc*100:.2f}%")
 
     return {
@@ -147,17 +157,8 @@ def evaluate_model(model, X_val, y_val, class_names=None):
 # =========================
 def load_subject_excel(filepath):
     df = pd.read_excel(filepath)
-
-    # SSC featurelerini çıkar
-    cols_to_drop = []#["SSC1","WA2","WL2","SSC2"]
-
-    # eğer büyük-küçük harf farkı olursa diye güvenli hale getiriyoruz
     df.columns = [col.strip() for col in df.columns]
 
-    existing_cols_to_drop = [col for col in cols_to_drop if col in df.columns]
-    df = df.drop(columns=existing_cols_to_drop)
-
-    # son sütun TRUECLASS olacak şekilde
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values
 
@@ -170,7 +171,12 @@ def load_subject_excel(filepath):
 # LOSO Cross Validation
 # =========================
 def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128, lr=1e-3):
-    class_names = ["biceps contraction", "triceps contraction", "rest"]
+    # UPDATE THIS LIST: Replaced the 3 classes with 7 generic classes. 
+    # Change these strings to match your actual 7 movement names!
+    class_names = [
+        "Class 0", "Class 1", "Class 2", "Class 3", 
+        "Class 4", "Class 5", "Class 6"
+    ]
 
     subject_data = {}
     for subject_name, filepath in subject_files.items():
@@ -178,14 +184,9 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
         subject_data[subject_name] = (X_subj, y_subj)
 
         unique, counts = np.unique(y_subj.numpy(), return_counts=True)
-        print(f"\nLoaded {subject_name}")
-        print(f"Path: {filepath}")
-        print(f"Samples: {len(y_subj)}")
-        print(f"Feature dimension: {X_subj.shape[1]}")
-        print(f"Class distribution: {dict(zip(unique, counts))}")
+        print(f"Loaded {subject_name} | Features: {X_subj.shape[1]} | Samples: {len(y_subj)}")
 
     fold_results = []
-
     subject_names = list(subject_files.keys())
 
     for val_subject in subject_names:
@@ -206,17 +207,6 @@ def loso_cross_validation(subject_files, d_hidden=32, epochs=50, batch_size=128,
 
         X_train = torch.cat(X_train_list, dim=0)
         y_train = torch.cat(y_train_list, dim=0)
-
-        print(f"Training subjects: {[s for s in subject_names if s != val_subject]}")
-        print(f"Train size: {X_train.shape[0]}")
-        print(f"Validation size: {X_val.shape[0]}")
-        print(f"Number of features: {X_train.shape[1]}")
-
-        unique_train, counts_train = np.unique(y_train.numpy(), return_counts=True)
-        unique_val, counts_val = np.unique(y_val.numpy(), return_counts=True)
-
-        print(f"Train class distribution: {dict(zip(unique_train, counts_train))}")
-        print(f"Val class distribution: {dict(zip(unique_val, counts_val))}")
 
         model = train_model(
             X_train, y_train, X_val, y_val,
@@ -270,6 +260,6 @@ if __name__ == "__main__":
         subject_files,
         d_hidden=64,
         epochs=50,
-        batch_size=128,
+        batch_size=64,
         lr=1e-2
     )
